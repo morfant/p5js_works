@@ -16,6 +16,75 @@ var col = 0
 var vertices = []
 var vertices_x = []
 
+function computeBounds(theta) {
+	let ta = 90
+	let tx = 0
+	let ty = 0
+	let minX = tx
+	let maxX = tx
+	let minY = ty
+	let maxY = ty
+	const stack = []
+
+	const updateBounds = (x, y) => {
+		if (x < minX) minX = x
+		if (x > maxX) maxX = x
+		if (y < minY) minY = y
+		if (y > maxY) maxY = y
+	}
+
+	for (let i = 0; i < current.length; i++) {
+		const c = current[i]
+		if (c === 'F') {
+			tx += cos(ta)
+			ty -= sin(ta)
+			updateBounds(tx, ty)
+		} else if (c === 'f') {
+			tx += cos(ta) * 0.7
+			ty -= sin(ta) * 0.7
+			updateBounds(tx, ty)
+		} else if (c === 'd') {
+			ta += theta / 2
+			tx += cos(ta) * 0.3
+			ty -= sin(ta) * 0.3
+			updateBounds(tx, ty)
+			ta += theta / 2
+		} else if (c === 'D') {
+			ta -= theta / 2
+			tx += cos(ta) * 0.3
+			ty -= sin(ta) * 0.3
+			updateBounds(tx, ty)
+			ta -= theta / 2
+		} else if (c === 'G') {
+			tx += cos(ta)
+			ty -= sin(ta)
+			updateBounds(tx, ty)
+			ta -= theta
+			tx += cos(ta)
+			ty -= sin(ta)
+			updateBounds(tx, ty)
+		} else if (c === '+') {
+			ta += theta
+		} else if (c === '-') {
+			ta -= theta
+		} else if (c === '[') {
+			stack.push(tx, ty, ta)
+		} else if (c === ']') {
+			ta = stack.pop()
+			ty = stack.pop()
+			tx = stack.pop()
+			updateBounds(tx, ty)
+		}
+	}
+
+	return {
+		minX,
+		maxX,
+		minY,
+		maxY
+	}
+}
+
 function setup() {
 
 	createCanvas(1000, 1000);
@@ -117,14 +186,28 @@ function draw() {
 	background(0)
 
 	// Angle in degrees
-	var theta = 90 
-	var step_size = 8 
-	var step_radius = 5 
+	var theta = 90
+	var bounds = computeBounds(theta)
+	var spanX = bounds.maxX - bounds.minX
+	var spanY = bounds.maxY - bounds.minY
+	if (spanX === 0) spanX = 1
+	if (spanY === 0) spanY = 1
+	var scale = Math.min(width / spanX, height / spanY) * 0.95
+	var step_radius = Math.max(2, scale * 0.6)
+	var marginX = (width - spanX * scale) / 2
+	var marginY = (height - spanY * scale) / 2
+	var offsetX = marginX - bounds.minX * scale
+	var offsetY = marginY - bounds.minY * scale
 
-	// Initial theta, position
+	var toScreenX = (x) => x * scale + offsetX
+	var toScreenY = (y) => y * scale + offsetY
+
+	// Initial theta, position (logical coordinates)
 	var ta = 90 
-	var tx = width
-	var ty = height
+	var tx = 0
+	var ty = 0
+	var sx = toScreenX(tx)
+	var sy = toScreenY(ty)
 	var th_step = 10 
 	var hue_max = 360 
 	var hue_min = 40
@@ -136,6 +219,10 @@ function draw() {
 	fill(count * 10, 100, 100)
 	strokeWeight(1)
 
+	vertices = []
+	vertices_x = []
+	s = []
+
 	if (current.length > 0) {
 		// ellipse(tx, ty, 10, 10) // start point
 		// stroke(100, random(150), 150, 255 - (count * 20))
@@ -146,26 +233,29 @@ function draw() {
 			if (c == 'F') {
 				stroke(col, 80, 90, 0.3)
 				strokeWeight(1)
-				var new_x = tx + (step_size * cos(ta))
-				var new_y = ty - (step_size * sin(ta))
-				line(tx, ty, new_x, new_y)
-				// curve(tx, ty, tx, ty, new_x, new_y, new_x, new_y)
-				tx = new_x
-				ty = new_y
-				let v = createVector(tx, ty)
+				var new_tx = tx + cos(ta)
+				var new_ty = ty - sin(ta)
+				var new_sx = toScreenX(new_tx)
+				var new_sy = toScreenY(new_ty)
+				line(sx, sy, new_sx, new_sy)
+				tx = new_tx
+				ty = new_ty
+				sx = new_sx
+				sy = new_sy
+				let v = createVector(sx, sy)
 				vertices.push(v)
 			} else if (c == 'f') {
 				stroke(0, 80, 90)
 				strokeWeight(1)
-				var new_x = tx + (step_size * cos(ta)) * 0.7
-				var new_y = ty - (step_size * sin(ta)) * 0.7
-				// line(tx, ty, new_x, new_y)
-				// curve(tx, ty, tx, ty, new_x, new_y, new_x, new_y)
-				tx = new_x
-				ty = new_y
+				var new_tx = tx + cos(ta) * 0.7
+				var new_ty = ty - sin(ta) * 0.7
+				tx = new_tx
+				ty = new_ty
+				sx = toScreenX(tx)
+				sy = toScreenY(ty)
 
 			}  else if (c == 'X') {
-				let v = createVector(tx, ty)
+				let v = createVector(sx, sy)
 				vertices_x.push(v)
 				// vertices.pop()
 			}
@@ -174,37 +264,51 @@ function draw() {
 				stroke(40, 80, 90)
 				strokeWeight(1)
 				ta += theta/2
-				var new_x = tx + (step_size * cos(ta)) * 0.3
-				var new_y = ty - (step_size * sin(ta)) * 0.3
-				line(tx, ty, new_x, new_y)
-				// curve(tx, ty, tx, ty, new_x, new_y, new_x, new_y)
-				tx = new_x
-				ty = new_y
+				var new_tx = tx + cos(ta) * 0.3
+				var new_ty = ty - sin(ta) * 0.3
+				var new_sx = toScreenX(new_tx)
+				var new_sy = toScreenY(new_ty)
+				line(sx, sy, new_sx, new_sy)
+				tx = new_tx
+				ty = new_ty
+				sx = new_sx
+				sy = new_sy
 				ta += theta/2
 
 			} else if (c == 'D') {
 				stroke(40, 80, 90)
 				strokeWeight(1)
 				ta -= theta/2
-				var new_x = tx + (step_size * cos(ta)) * 0.3
-				var new_y = ty - (step_size * sin(ta)) * 0.3
-				line(tx, ty, new_x, new_y)
-				// curve(tx, ty, tx, ty, new_x, new_y, new_x, new_y)
-				tx = new_x
-				ty = new_y
+				var new_tx = tx + cos(ta) * 0.3
+				var new_ty = ty - sin(ta) * 0.3
+				var new_sx = toScreenX(new_tx)
+				var new_sy = toScreenY(new_ty)
+				line(sx, sy, new_sx, new_sy)
+				tx = new_tx
+				ty = new_ty
+				sx = new_sx
+				sy = new_sy
 				ta -= theta/2
 			} else if (c == 'G') { // F-F
-				var new_x = tx + (step_size * cos(ta))
-				var new_y = ty - (step_size * sin(ta))
-				line(tx, ty, new_x, new_y)
-				tx = new_x
-				ty = new_y
+				var new_tx = tx + cos(ta)
+				var new_ty = ty - sin(ta)
+				var new_sx = toScreenX(new_tx)
+				var new_sy = toScreenY(new_ty)
+				line(sx, sy, new_sx, new_sy)
+				tx = new_tx
+				ty = new_ty
+				sx = new_sx
+				sy = new_sy
 				ta -= theta
-				var new_x = tx + (step_size * cos(ta))
-				var new_y = ty - (step_size * sin(ta))
-				line(tx, ty, new_x, new_y)
-				tx = new_x
-				ty = new_y
+				new_tx = tx + cos(ta)
+				new_ty = ty - sin(ta)
+				new_sx = toScreenX(new_tx)
+				new_sy = toScreenY(new_ty)
+				line(sx, sy, new_sx, new_sy)
+				tx = new_tx
+				ty = new_ty
+				sx = new_sx
+				sy = new_sy
 			} else if (c == '+') { // left
 				ta += theta
 			} else if (c == '-') { // right
@@ -219,10 +323,12 @@ function draw() {
 				ta = s.pop()
 				ty = s.pop()
 				tx = s.pop()
+				sx = toScreenX(tx)
+				sy = toScreenY(ty)
 			} else if (c == 'C') {
 				noStroke()
 				fill(100, 100, 100)
-				ellipse(tx, ty, step_radius)
+				ellipse(sx, sy, step_radius)
 			} else if (c == 'H') {
 				th += th_step
 				if (th > hue_max) {
