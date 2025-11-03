@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>p5.js — Live Evolving Art with Freeze & Snapshot</title>
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+  <style>
+    :root { --bg:#0b0c10; --fg:#eaf0f6; --muted:#9aa7b3; --accent:#6ee7ff; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Apple SD Gothic Neo, sans-serif; }
+    header { position:sticky; top:0; z-index:5; backdrop-filter:saturate(180%) blur(8px); background:rgba(11,12,16,.8); border-bottom:1px solid rgba(255,255,255,.08); }
+    .wrap { max-width:1000px; margin:0 auto; padding:12px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    button, .btn { appearance:none; border:1px solid rgba(255,255,255,.16); background:#14161c; color:var(--fg); padding:8px 10px; border-radius:10px; cursor:pointer; transition:.15s ease; }
+    button:hover, .btn:hover { transform:translateY(-1px); border-color:rgba(255,255,255,.28); }
+    button[disabled] { opacity:.5; cursor:not-allowed; }
+    .sep { opacity:.35; padding:0 4px; }
+    label { display:flex; align-items:center; gap:8px; }
+    input[type="range"]{ width:160px; }
+
+    main { max-width:1000px; margin:12px auto 18px; padding:0 16px; }
+    #canvas-holder { position:relative; border-radius:16px; overflow:hidden; box-shadow: 0 12px 40px rgba(0,0,0,.45); }
+    #overlay { position:absolute; inset:0; display:flex; align-items:flex-end; justify-content:space-between; padding:10px 12px; pointer-events:none; }
+    #overlay .tag { pointer-events:auto; padding:6px 8px; background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.12); border-radius:999px; color:var(--fg); font-size:12px; }
+    #help { pointer-events:auto; padding:6px 8px; background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.12); border-radius:10px; color:var(--muted); font-size:12px; }
+
+    .gallery { max-width:1000px; margin:18px auto 40px; padding:0 16px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px,1fr)); gap:12px; }
+    .card { background:#0f1218; border:1px solid rgba(255,255,255,.08); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; }
+    .thumb { width:100%; aspect-ratio:4/3; object-fit:cover; display:block; }
+    .meta { padding:8px 10px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+    .meta small { color:var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <button id="btn-freeze" title="Freeze current moment (F)">❄️ Freeze (F)</button>
+      <button id="btn-resume" title="Resume live evolution (R)" disabled>▶️ Resume (R)</button>
+      <span class="sep">|</span>
+      <button id="btn-snapshot" title="Save a snapshot without pausing (S)">📸 Snapshot (S)</button>
+      <button id="btn-download" title="Download the frozen/current frame (D)">⬇️ Download (D)</button>
+      <button id="btn-print" title="Render & download at 10S (45.5cm) 300dpi (P)">🖨️ Print PNG 10S (P)</button>
+      <span class="sep">|</span>
+      <label>Speed <input id="speed" type="range" min="0" max="4" step="0.01" value="1"></label>
+      <label>Detail <input id="detail" type="range" min="0.5" max="3" step="0.01" value="1.2"></label>
+    </div>
+  </header>
+
+  <main>
+    <div id="canvas-holder">
+      <!-- the p5 canvas will be inserted here -->
+      <div id="overlay">
+        <div id="badge" class="tag">LIVE</div>
+        <div id="help">Click/press <b>F</b> to freeze · <b>R</b> to resume · <b>D</b> to download · <b>S</b> snapshot</div>
+      </div>
+    </div>
+  </main>
+
+  <section class="gallery">
+    <div class="wrap" style="padding-left:0;padding-right:0;">
+      <h3 style="margin:0 0 8px 0;">Snapshots</h3>
+      <div id="grid" class="grid"></div>
+    </div>
+  </section>
+
+<script src="sketch.js"></script>
+</body>
+</html>
