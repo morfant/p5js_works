@@ -1,110 +1,63 @@
-let rects = [];
-let theShader;
-let theShaderGL2; // WebGL2 (#version 300 es)
-let theShaderGL1; // WebGL1 (GLSL ES 1.00)
-const MAX_RECTS_GL2 = 32;
-const MAX_RECTS_GL1 = 32;
-let ACTIVE_MAX_RECTS = MAX_RECTS_GL2;
-
-// WebGL에서 텍스트 사용을 위한 폰트 및 셰이더 로드
 let uiFont;
+// FPS 지표를 부드럽게 보여주기 위한 지수이동평균(EMA)
+let _fpsEma = null;
+
 function preload() {
-    // 로컬 폰트 사용
-    uiFont = loadFont('assets/Arial.ttf');
-    // 두 버전의 셰이더를 모두 로드해두고, setup에서 선택
-    theShaderGL2 = loadShader('shaders/wavyrect.vert', 'shaders/wavyrect.frag');
-    theShaderGL1 = loadShader('shaders/wavyrect_gl1.vert', 'shaders/wavyrect_gl1.frag');
+    // uiFont = loadFont('assets/Arial.ttf');
 }
 
 function setup() {
-    createCanvas(800, 800, WEBGL);
+    createCanvas(600, 600);
     pixelDensity(1);
-    noiseDetail(3, 0.5);
-    // 렌더러 버전에 따라 적절한 셰이더 선택
-    const isGL2 = (drawingContext && typeof WebGL2RenderingContext !== 'undefined' && drawingContext instanceof WebGL2RenderingContext);
-    // theShader = isGL2 ? theShaderGL2 : theShaderGL1;
-    // ACTIVE_MAX_RECTS = isGL2 ? MAX_RECTS_GL2 : MAX_RECTS_GL1;
-
-    theShader = theShaderGL1; ACTIVE_MAX_RECTS = 8;
-    if (uiFont) textFont(uiFont);
-
-    // 예시: 서로 다른 파라미터의 구부러진 사각형 두 개
-    const baseOpts = {
-        layers: 70, amp: 120, freq: 90.2, segments: 100,
-        strokeWeight: 0.2, baseAlpha: 180, falloff: 0.7, speed: 0.003
-    };
-    // 첫 번째 원형 하나
-    rects.push(new WavyRect(120, 120, 120, 60, { ...baseOpts, vx: 0.45, vy: 0.3 }));
-    // 첫 번째와 유사한 객체 100개 무작위 배치/속도로 추가
-    for (let i = 0; i < 10; i++) {
-        const w = 120 * random(0.7, 1.1);
-        const h = 60 * random(0.7, 1.1);
-        const x = random(0, width - w);
-        const y = random(0, height - h);
-        const vx = random([-1, 1]) * random(0.15, 0.7);
-        const vy = random([-1, 1]) * random(0.15, 0.7);
-        // 레이어 수나 알파를 살짝 흔들어 군집감 주기
-        const layersJ = round(baseOpts.layers * random(0.8, 1.0));
-        const baseAlphaJ = baseOpts.baseAlpha * random(0.8, 1.1);
-        rects.push(new WavyRect(x, y, w, h, {
-            ...baseOpts,
-            layers: layersJ,
-            baseAlpha: baseAlphaJ,
-            vx, vy
-        }));
-    }
-
-    rects.push(new WavyRect(340, 260, 220, 140, {
-        layers: 16, amp: 16, freq: 0.9, segments: 140,
-        strokeWeight: 1.1, baseAlpha: 160, falloff: 0.65, speed: 0.002,
-        vx: -0.6, vy: 0.55
-    }));
 }
 
 function draw() {
-    background(18);
+    background(0);
 
-    rects.forEach(r => r.update());
+    // 하나의 WavyRect만 화면에 그리기
+    // - 위치/크기: 캔버스 가장자리로부터 50px 여백
+    // - 아래 옵션은 각 시각적 요소의 역할을 상세히 주석으로 표기함
+    if (!window._singleWavyRect) {
+        window._singleWavyRect = new WavyRect(
+            50, 50,
+            width - 100, height - 100,
+            {
+                // 레이어(겹수). 값이 클수록 선이 겹겹이 빽빽해짐. 50이면 매우 풍성함.
+                layers: 50,
 
-    // 셰이더 바인딩 및 데이터 전달
-    shader(theShader);
-    theShader.setUniform('u_resolution', [width, height]);
-    theShader.setUniform('u_time', millis() / 1000.0);
-    const count = min(rects.length, ACTIVE_MAX_RECTS);
-    theShader.setUniform('u_count', count);
+                // 안쪽으로 파형이 들어가는 최대 진폭(px). 120이면 가장자리 굴곡이 크게 보임.
+                amp: 920,
 
-    const rectData = [];
-    const ampData = [];
-    const freqData = [];
-    const falloffData = [];
-    for (let i = 0; i < count; i++) {
-        const r = rects[i];
-        rectData.push(r.x, r.y, r.w, r.h);
-        ampData.push(r.amp * 0.2); // 셰이더에서 스케일 보정
-        freqData.push(r.freq);
-        falloffData.push(r.falloff);
+                // 노이즈 주파수(변을 따라 결의 세밀도). 값이 클수록 더 촘촘한 요철이 생김. 440은 매우 세밀.
+                freq: 140.0,
+
+                // 각 변을 몇 개의 점으로 나눠 그릴지(샘플 수). 높을수록 매끈하지만 계산량 증가.
+                segments: 180,
+
+                // 선 두께(px).
+                strokeWeight: 1,
+
+                // 맨 앞 레이어의 알파(투명도). 뒤로 갈수록 점차 낮아짐.
+                baseAlpha: 180,
+
+                // 레이어가 안쪽으로 갈수록 진폭/알파가 줄어드는 비율(0~1). 0.75면 느리게 감소.
+                falloff: 0.75,
+
+                // 시간에 따른 파형 애니메이션 속도. 0이면 완전 정지.
+                speed: 0.002,
+
+                // 사각형 자체의 이동 속도(px/frame). 0이면 위치 고정.
+                vx: 0,
+                vy: 0,
+            }
+        );
     }
-    theShader.setUniform('u_rects', rectData);
-    theShader.setUniform('u_amp', ampData);
-    theShader.setUniform('u_freq', freqData);
-    theShader.setUniform('u_falloff', falloffData);
 
-    // 풀스크린 사각형 렌더 (p5 WEBGL rect를 사용해 aPosition/aTexCoord 제공)
-    noStroke();
-    rectMode(CENTER);
-    rect(0, 0, width, height);
+    // 위치 이동은 하지 않고, 파형만 시간에 따라 변화
+    window._singleWavyRect.display();
 
-    // FPS 표시 (웹GL 좌표계 보정)
-    resetShader();
-    push();
-    translate(-width / 2, -height / 2);
-    noStroke();
-    fill(255);
-    textSize(12);
-    textAlign(LEFT, TOP);
-    const fps = nf(frameRate(), 2, 1);
-    text(`FPS: ${fps}`, 10, 10);
-    pop();
+    // FPS 오버레이
+    drawFPSOverlay();
 
 }
 
@@ -112,9 +65,19 @@ function draw() {
 // ==== 클래스 정의 ====
 class WavyRect {
     /**
-     * x, y: 좌상단 좌표
-     * w, h: 너비, 높이
-     * opts: {layers, amp, freq, segments, strokeWeight, baseAlpha, falloff, speed}
+     * 생성자 인자 설명
+     * - x, y: 사각형의 좌상단 좌표(px)
+     * - w, h: 사각형의 너비/높이(px)
+     * - opts: 시각/동작성 제어 옵션 객체
+     *   - layers: 선을 겹치는 레이어 수. 많을수록 두텁고 빽빽한 외곽선 표현
+     *   - amp: 안쪽으로 들어가는 최대 굴곡 진폭(px). 값이 클수록 가장자리 왜곡이 큼
+     *   - freq: 변을 따라 적용되는 노이즈의 주파수. 값이 클수록 세밀한 요철이 촘촘히 생김
+     *   - segments: 각 변을 분할해 샘플링하는 점 개수. 높을수록 매끈하지만 계산량 증가
+     *   - strokeWeight: 선 굵기(px)
+     *   - baseAlpha: 가장 앞 레이어의 기본 투명도. 뒤 레이어는 점점 낮아짐
+     *   - falloff: 레이어가 뒤(안쪽)로 갈수록 amp/alpha가 줄어드는 비율(0~1)
+     *   - speed: 시간에 따른 파형 애니메이션 속도. 0이면 파형 고정
+     *   - vx, vy: 사각형 자체의 이동 속도(px/frame). 0이면 정지
      */
     constructor(x, y, w, h, opts = {}) {
         this.x = x; this.y = y; this.w = w; this.h = h;
@@ -231,8 +194,36 @@ class WavyRect {
     _noiseEdge(edge, t01, layer) {
         // 노이즈 값: -1..1 범위가 되도록 (noise*2-1)
         const seed = this.edgeSeeds[edge];
-        const f = this.freq;
+        const f = this.freq; // t01(0..1) 구간을 f배로 확대하여 세밀도(결의 촘촘함) 제어
         const z = this.t + layer * 0.037; // 레이어마다 살짝 다른 시간 오프셋
         return (noise(seed, t01 * f, z) * 2 - 1);
     }
+}
+
+// === 유틸: FPS 오버레이 ===
+function drawFPSOverlay() {
+    // 즉시 FPS (deltaTime 기반)
+    const instFps = 1000 / deltaTime; // ms → fps
+    // EMA로 안정화(처음엔 즉시값으로 초기화)
+    if (_fpsEma == null || !isFinite(_fpsEma)) _fpsEma = instFps;
+    _fpsEma = lerp(_fpsEma, instFps, 0.1);
+
+    const label = `FPS ${_fpsEma.toFixed(1)}`;
+
+    push();
+    noStroke();
+    textSize(12);
+    textAlign(LEFT, TOP);
+
+    // 배경 패널 크기를 텍스트에 맞춰 계산
+    const pad = 6;
+    const tw = textWidth(label);
+    const th = 14; // 대략적인 행 높이
+    fill(0, 160);
+    rect(10, 10, tw + pad * 2, th + pad * 2, 4);
+
+    // 텍스트 그리기
+    fill(255);
+    text(label, 10 + pad, 10 + pad);
+    pop();
 }
